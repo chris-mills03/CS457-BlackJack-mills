@@ -19,20 +19,28 @@
 ### 1.1 Game Overview
 - **Chosen Game:** Blackjack
 - **Player Capacity:** 2 Players (Simulated via 2 CML Client nodes)
-- **Game Summary:** [Briefly describe the gameplay mechanics and rules]
-The game will be a simple version of blackjack where two players will play against a dealer (the server). Each player will take turns to hit or stand, 
-and the dealer will follow standard blackjack rules. The goal is to have a hand value closer to 21 than the dealer without exceeding 21. Each player will begin
-with a set of money and can place bets before each round. The game will continue unitl a player runs out of money, a player leaves, or
-unitl a predetermined number of rounds is completed. A player wins by having ore money than they started with.
+- **Game Summary:**
+The game will be a simple version of blackjack where two players will play against a dealer (the server) rather than against each other.
+Each player will take turns to hit or stand, and the dealer will follow standard blackjack rules. The goal is to have a 
+hand value closer to 21 than the dealer without exceeding 21. Each player will begin with a set amount of money and can place bets 
+before each round. The game will continue unitl a player runs out of money, both players leaves, or
+unitl a predetermined number of rounds is completed.
 
 ### 1.2 Core Game Rules & Win/Draw Conditions
-- **Turn Mechanics:** [Explain how turn order is enforced between Player 1 and Player 2]
-The 
-
-- **Victory Condition:** [Define how a player wins the game]
-A player wins by having more money than they started with by the end of the predetermined number of rounds.  
-- **Draw/Tie Condition:** [Define how a draw/tie is detected and handled]
-If both players have the same amount of money at the end of the game,  it is considered a draw
+- **Turn Mechanics:**
+Player 1 will take their turn first, followed by Player 2. 
+Player 1 will then have the choice to repeatedly choose to hit until they stand or go over 21.
+Player 2 will then have the same option to hit or stand as long as their hand value does not exceed 21. 
+After both players are done with their turns, the dealer will then play their hand.
+The dealer will hit until their hand reaches a value of 17 or higher and then stand.
+The dealer will then compare their hand to the players' hands and determine which players won.
+If they did win, they will receive their bet back plus the amount they won. If they lost, they will lose their bet. If they tied, they will receive their bet back.
+- **Victory Condition:**
+A player wins a round if they have a hand value closer to 21 than the dealer without exceeding 21.
+A player wins the game by having more money than they started with by the end of the predetermined number of rounds or by leaving the game while up. 
+- **Draw/Tie Condition:**
+A player ties a round if they have the same hand value as the dealer without exceeding 21.
+If a player has the same amount of money as they started with at the end of the game, it is considered a draw.
 ---
 
 ## 2. Application-Layer Messaging Protocol Blueprint (Sprint 1 Deliverable)
