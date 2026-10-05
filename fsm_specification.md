@@ -16,15 +16,12 @@ stateDiagram-v2
 
     INIT --> WAITING_FOR_PLAYERS : Socket bound and listening
 
-    WAITING_FOR_PLAYERS --> WAITING_FOR_PLAYERS : 1st valid CONNECT, seat PLAYER_1, send LOBBY_WAIT
-    WAITING_FOR_PLAYERS --> WAITING_FOR_PLAYERS : Bad CONNECT, send ERROR
-    WAITING_FOR_PLAYERS --> WAITING_FOR_PLAYERS : Waiting player disconnects, free seat
+    WAITING_FOR_PLAYERS --> WAITING_FOR_PLAYERS : 1st valid CONNECT, seat PLAYER_1, send LOBBY_WAIT<br/>Bad CONNECT, send ERROR<br/>Waiting player disconnects, free seat
     WAITING_FOR_PLAYERS --> GAME_START : 2nd valid CONNECT, seat PLAYER_2
 
     GAME_START --> BETTING : Send GAME_START with seat roles, set balances, round = 1
 
-    BETTING --> BETTING : Valid BET, record it, broadcast STATE_UPDATE
-    BETTING --> BETTING : Invalid or out-of-phase message, send ERROR
+    BETTING --> BETTING : Valid BET, record it, broadcast STATE_UPDATE<br/>Invalid or out-of-phase message, send ERROR
     BETTING --> DEALING : Both bets placed
     BETTING --> GAME_OVER : Player disconnects, forfeit
 
@@ -32,19 +29,16 @@ stateDiagram-v2
     DEALING --> DEALER_TURN : Both players dealt blackjack
 
     PLAYER_TURN --> EVALUATE_MOVE : MOVE HIT or STAND from active player
-    PLAYER_TURN --> PLAYER_TURN : Out-of-turn MOVE, send ERROR NOT_YOUR_TURN
-    PLAYER_TURN --> PLAYER_TURN : Invalid action or malformed message, send ERROR
+    PLAYER_TURN --> PLAYER_TURN : Out-of-turn MOVE, send ERROR NOT_YOUR_TURN<br/>Invalid action or malformed message, send ERROR
     PLAYER_TURN --> GAME_OVER : Player disconnects, forfeit
 
-    EVALUATE_MOVE --> PLAYER_TURN : HIT and hand 21 or less, same player continues
-    EVALUATE_MOVE --> PLAYER_TURN : PLAYER_1 stands or busts, active = PLAYER_2
+    EVALUATE_MOVE --> PLAYER_TURN : HIT and hand 21 or less, same player continues<br/>PLAYER_1 stands or busts, active = PLAYER_2
     EVALUATE_MOVE --> DEALER_TURN : Last player stands or busts
 
     DEALER_TURN --> ROUND_END : Dealer hits until 17 or more, then stands
 
     ROUND_END --> BETTING : Settle bets, rounds remain and both balances above 0, round + 1
-    ROUND_END --> GAME_OVER : Max rounds reached or a player balance is 0
-    ROUND_END --> GAME_OVER : Player disconnects, forfeit
+    ROUND_END --> GAME_OVER : Max rounds reached or a player balance is 0<br/>Player disconnects, forfeit
 
     GAME_OVER --> CLEANUP : Broadcast GAME_OVER with outcomes and final balances
 
