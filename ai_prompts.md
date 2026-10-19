@@ -178,3 +178,61 @@ user. On GAME_OVER print the results and exit. On "quit" send DISCONNECT, then c
 - [ ] Invalid / out-of-turn input returns `ERROR` and never raises out of the loop
 - [ ] Tests cover coalesced and fragmented streams from the blueprint's wire examples
 - [ ] All three disconnect sources lead to the same `CLIENT_DISCONNECTED` path
+
+## 5. Sprint 2 Design Assistance Prompts
+
+For Sprint 2 (concurrency design), I used an AI assistant (Claude) for design help rather than code generation. I chose the concurrency model (`selectors`), gave it my Sprint 1 specs and the Sprint 2 assignment and rubric as context, and reviewed every suggestion against them. These are the kinds of prompts I used.
+
+### 5.1 Markdown formatting
+
+```text
+Here is my Sprint 2 assignment and rubric, plus my existing protocol_blueprint.md and
+fsm_specification.md. Help me organize concurrency_design.md so each rubric criterion
+has a clear section. Use headings, tables where they make things easier to scan, and
+keep the same style as my Sprint 1 docs. Do not add requirements that are not in the
+assignment.
+```
+
+### 5.2 Ideas for the concurrency design
+
+```text
+I'm using Python selectors (non-blocking I/O, one event loop) for a 2-player Blackjack
+server. Using my protocol and FSM, help me think through:
+ - the connection lifecycle: accept, CONNECT registration, servicing, teardown
+ - which pieces of game state are shared, and why one event loop keeps them safe
+   without locks
+ - what race conditions could happen with two clients and how this design prevents them
+ - how round scores are stored and broadcast to both players at the end of a round
+ - how a player who loses connection mid-game can rejoin without losing their state
+Keep it at design level for this sprint, not a full implementation.
+```
+
+### 5.3 Help with states and sequences
+
+```text
+Walk through the message flow for one full game using only the 9 message types in my
+protocol (CONNECT, LOBBY_WAIT, GAME_START, BET, MOVE, STATE_UPDATE, ERROR, DISCONNECT,
+GAME_OVER). For each step, say which FSM state the server is in, what it validates,
+what state changes, and which clients receive which message. Include the error cases:
+out-of-turn MOVE, invalid action, invalid bet. Point out anything in my
+fsm_specification.md that would need to change (for example, rejoining after a drop).
+```
+
+### 5.4 Using Mermaid
+
+```text
+Turn this message flow into a Mermaid sequenceDiagram that renders on GitHub. Follow
+the style of my instructor's example: autonumber, actor / participant / actor, a
+"Server validates" note, and an alt/else block for valid vs invalid or out-of-turn
+moves. Show STATE_UPDATE going to both clients after each change, the turn switch,
+the end-of-round score broadcast, and GAME_OVER. Make sure every message type in my
+protocol appears. Avoid characters that break Mermaid parsing (such as ; and #) and
+check that the diagram renders without syntax errors.
+```
+
+### 5.5 How I reviewed the output
+
+- Checked every message name, field, error code and FSM state against `protocol_blueprint.md` and `fsm_specification.md`.
+- Cut suggestions that went beyond what Sprint 2 asks for, to keep the design at the right level for this stage.
+- Confirmed the Mermaid diagrams render on GitHub.
+- Updated the Sprint 1 specs only where my design changed (rejoin after an unexpected disconnect) and marked those changes as Sprint 2 updates.

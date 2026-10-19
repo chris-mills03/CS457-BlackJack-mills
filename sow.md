@@ -94,6 +94,20 @@ Complete schemas (keys, data types, sample payloads) are defined in [`protocol_b
 - **Turn Enforcement:** Detail how the server validates active player ID before processing moves and broadcasts updated turn notifications to all clients.
 - **Score & Board Synchronization:** Describe how state broadcasts keep client screens synchronized in real time.
 
+3.1 Server Concurrency Strategy
+Architecture Choice: Non-blocking I/O multiplexing with Python selectors. The main thread runs an event loop over the listening socket and every client socket, 
+all set to setblocking(False). Writes go through a per-connection outbound buffer with non-blocking send(), so a slow client can never stall the server.
+Synchronization Logic: No threading.Lock is needed because there is only one thread. Every event handler runs to completion: it validates the message, 
+mutates the game state (board, turn, bets, scores, client list) and queues the resulting broadcast before the loop services the next socket. The FSM is pure (no I/O) and 
+is only called from the loop. An intentional DISCONNECT is a forfeit. An unexpected drop keeps the player's seat and game state in server memory for 60 seconds so they can rejoin by sending CONNECT with the same alias.
+3.2 State & Score Synchronization Across Clients
+Turn Enforcement: The server identifies the sender by socket (not by player_id). A MOVE is checked for phase, then seat == active_player, then legality, before anything 
+is changed; failures send ERROR (WRONG_PHASE, NOT_YOUR_TURN, INVALID_ACTION) to the sender only. The turn check and the turn switch happen in the same handler, so two players 
+can never both be active.
+Score & Board Synchronization: Every accepted BET/MOVE, dealer card and round settlement produces a full STATE_UPDATE snapshot that is encoded once and queued to both seats 
+in the same event-loop step, so both clients see the same table in the same order. Round scores (balances, win/loss/push tallies, round history) live in the FSM, are updated 
+only in ROUND_END, and reach both clients through the balances and round results already in every STATE_UPDATE and the final GAME_OVER.
+
 ---
 
 ## 4. Coding & AI Implementation Plan (Sprint 3)

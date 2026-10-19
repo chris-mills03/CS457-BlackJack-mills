@@ -231,6 +231,7 @@ Broadcast to **both** clients after every accepted `BET` or `MOVE`, after the de
 | `balance` | integer | Money not currently wagered |
 | `bet` | integer | Wager this round (`0` if not placed yet) |
 | `status` | string enum | `"BETTING"`, `"WAITING"`, `"PLAYING"`, `"STAND"`, `"BUST"` or `"BLACKJACK"` |
+| `connected` | boolean | `false` while the player is disconnected and the server is holding their seat for a rejoin (added in Sprint 2) |
 | `result` | string enum or `null` | `"WIN"`, `"LOSS"` or `"PUSH"`, only in `ROUND_END`, otherwise `null` |
 
 ```json
@@ -284,7 +285,7 @@ Graceful, intentional quit. The client sends it, then closes its socket.
 {"msg_type":"DISCONNECT","player_id":"Bob","timestamp":1759600100,"payload":{"reason":"user quit"}}
 ```
 
-Effect: in the lobby, the seat is freed. During a game, the sender **forfeits** (see §5.3).
+Effect: in the lobby, the seat is freed. During a game, the sender **forfeits** (see §5.3). A connection that drops *without* `DISCONNECT` is not a quit; the seat is held so the player can rejoin.
 
 ### 4.9 `GAME_OVER` — Server → Clients
 
@@ -319,18 +320,19 @@ Server: accept()  → per-client buffer → [dispatch to FSM] → on GAME_OVER/C
 | Termination | What happens on the wire | How the server detects it | Server action |
 |---|---|---|---|
 | **Application disconnect** | Client sends `DISCONNECT`, then `close()` → TCP FIN | `DISCONNECT` message parsed | Treat as a forfeit (§5.3), then close the socket |
-| **Graceful TCP close** (client exits without `DISCONNECT`) | TCP FIN (4-way teardown) | `recv()` returns `b""` (**EOF**) | Same as `DISCONNECT` |
-| **Abrupt drop** (`kill -9`, crash, power loss) | OS sends TCP RST, or nothing | `recv()`/`sendall()` raises `ConnectionResetError` / `ConnectionAbortedError` | Same as `DISCONNECT` |
-| **Write to a closed peer** | Peer already gone | `sendall()` raises `BrokenPipeError` (EPIPE) | Same as `DISCONNECT` |
-| **Silent network drop** (CML link severed, no FIN/RST) | Nothing arrives | TCP keepalive (`SO_KEEPALIVE`) or the next `sendall()` eventually fails with `TimeoutError` / `OSError` | Same as `DISCONNECT` |
+| **Graceful TCP close** (client exits without `DISCONNECT`) | TCP FIN (4-way teardown) | `recv()` returns `b""` (**EOF**) | Hold the seat for rejoin (§5.3) |
+| **Abrupt drop** (`kill -9`, crash, power loss) | OS sends TCP RST, or nothing | `recv()`/`sendall()` raises `ConnectionResetError` / `ConnectionAbortedError` | Hold the seat for rejoin (§5.3) |
+| **Write to a closed peer** | Peer already gone | `sendall()` raises `BrokenPipeError` (EPIPE) | Hold the seat for rejoin (§5.3) |
+| **Silent network drop** (CML link severed, no FIN/RST) | Nothing arrives | TCP keepalive (`SO_KEEPALIVE`) or the next send eventually fails with `TimeoutError` / `OSError` | Hold the seat for rejoin (§5.3) |
 
-Every row feeds **one** FSM event, `CLIENT_DISCONNECTED(seat)`, so the state machine has a single disconnect path no matter how the connection ended.
+*(Updated in Sprint 2.)* Only an explicit `DISCONNECT` is a quit. Every other row is an unexpected drop and feeds the FSM event `CLIENT_DISCONNECTED(seat)`, which holds the seat so the player can rejoin.
 
 ### 5.3 Forfeit rules (FSM `CLIENT_DISCONNECTED` handling)
 
 - **In `WAITING_FOR_PLAYERS`:** the seat is freed and no `GAME_OVER` is sent (no game has started).
-- **After `GAME_START`** (any of `BETTING`, `PLAYER_TURN`, `DEALER_TURN`, `ROUND_END`): the game ends immediately. The leaving player's current bet is lost, and the server sends `GAME_OVER` with `reason:"FORFEIT"` to the remaining player (`outcome:"WIN_BY_FORFEIT"`), then moves to `CLEANUP`.
-- **If both players disconnect:** go straight to `CLEANUP` with no one to notify.
+- **After `GAME_START`, intentional `DISCONNECT`:** the game ends immediately. The leaving player's current bet is lost, and the server sends `GAME_OVER` with `reason:"FORFEIT"` to the remaining player (`outcome:"WIN_BY_FORFEIT"`), then moves to `CLEANUP`.
+- **After `GAME_START`, unexpected drop:** the seat and all of the player's state are kept for `REJOIN_TIMEOUT` (60 s). The player rejoins by connecting again and sending `CONNECT` with the same alias; the server replies with `GAME_START` and a full `STATE_UPDATE`. If they do not return in time, it is handled as a forfeit (previous rule). See `concurrency_design.md` Section 2.6.
+- **If both players are gone and neither rejoins in time:** go straight to `CLEANUP` with no one to notify.
 
 ### 5.4 The TCP EOF (0-byte) rule
 

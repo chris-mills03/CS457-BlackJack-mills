@@ -23,14 +23,14 @@ stateDiagram-v2
 
     BETTING --> BETTING : Valid BET, record it, broadcast STATE_UPDATE<br/>Invalid or out-of-phase message, send ERROR
     BETTING --> DEALING : Both bets placed
-    BETTING --> GAME_OVER : Player disconnects, forfeit
+    BETTING --> GAME_OVER : Player quits or rejoin timeout, forfeit
 
     DEALING --> PLAYER_TURN : Deal 2 cards each, active = first seat without blackjack
     DEALING --> DEALER_TURN : Both players dealt blackjack
 
     PLAYER_TURN --> EVALUATE_MOVE : MOVE HIT or STAND from active player
     PLAYER_TURN --> PLAYER_TURN : Out-of-turn MOVE, send ERROR NOT_YOUR_TURN<br/>Invalid action or malformed message, send ERROR
-    PLAYER_TURN --> GAME_OVER : Player disconnects, forfeit
+    PLAYER_TURN --> GAME_OVER : Player quits or rejoin timeout, forfeit
 
     EVALUATE_MOVE --> PLAYER_TURN : HIT and hand 21 or less, same player continues<br/>PLAYER_1 stands or busts, active = PLAYER_2
     EVALUATE_MOVE --> DEALER_TURN : Last player stands or busts
@@ -38,7 +38,7 @@ stateDiagram-v2
     DEALER_TURN --> ROUND_END : Dealer hits until 17 or more, then stands
 
     ROUND_END --> BETTING : Settle bets, rounds remain and both balances above 0, round + 1
-    ROUND_END --> GAME_OVER : Max rounds reached or a player balance is 0<br/>Player disconnects, forfeit
+    ROUND_END --> GAME_OVER : Max rounds reached or a player balance is 0<br/>Player quits or rejoin timeout, forfeit
 
     GAME_OVER --> CLEANUP : Broadcast GAME_OVER with outcomes and final balances
 
@@ -110,14 +110,18 @@ All of these are handled **without crashing the server loop and without changing
 
 ### 3.1 Disconnect handling
 
-`DISCONNECT` message, `recv()` EOF (`b""`), `ConnectionResetError`, `ConnectionAbortedError`, `BrokenPipeError` and `TimeoutError` all raise the single internal event **`CLIENT_DISCONNECTED(seat)`** (see `protocol_blueprint.md` §5).
+*(Updated in Sprint 2 to allow rejoining; see `concurrency_design.md` Section 2.6.)*
 
-| Current state | Action | Next state |
-|---|---|---|
-| `WAITING_FOR_PLAYERS` | Free the seat. A later `CONNECT` takes `PLAYER_1` | `WAITING_FOR_PLAYERS` |
-| `BETTING`, `PLAYER_TURN`, `ROUND_END` (or queued from a transient state) | The leaving seat forfeits its current bet. Send `GAME_OVER` (`reason:"FORFEIT"`, remaining player `WIN_BY_FORFEIT`) | `GAME_OVER` → `CLEANUP` |
-| Both players gone | No one to notify | `CLEANUP` |
-| `GAME_OVER` / `CLEANUP` | Ignore (already ending) | unchanged |
+A `DISCONNECT` message raises **`PLAYER_QUIT(seat)`**. An unexpected drop (`recv()` EOF without `DISCONNECT`, `ConnectionResetError`, `ConnectionAbortedError`, `BrokenPipeError`, `TimeoutError`) raises **`CLIENT_DISCONNECTED(seat)`**. A drop that is not followed by a rejoin within `REJOIN_TIMEOUT` (60 s) raises **`REJOIN_TIMEOUT(seat)`**.
+
+| Event | Current state | Action | Next state |
+|---|---|---|---|
+| any disconnect | `WAITING_FOR_PLAYERS` | Free the seat. A later `CONNECT` takes `PLAYER_1` | `WAITING_FOR_PLAYERS` |
+| `CLIENT_DISCONNECTED` | `BETTING`, `PLAYER_TURN`, `ROUND_END` | Keep the seat and all player state, set `connected: false`, start the rejoin timer, broadcast `STATE_UPDATE`. Wait whenever the game needs this player's input | unchanged (paused if waiting on this player) |
+| `CONNECT` with a held seat's alias | `BETTING`, `PLAYER_TURN`, `ROUND_END` | Bind the new socket to the seat, set `connected: true`, send it `GAME_START` + `STATE_UPDATE`, broadcast `STATE_UPDATE` | unchanged (resumes) |
+| `PLAYER_QUIT` or `REJOIN_TIMEOUT` | `BETTING`, `PLAYER_TURN`, `ROUND_END` | The leaving seat forfeits its current bet. Send `GAME_OVER` (`reason:"FORFEIT"`, remaining player `WIN_BY_FORFEIT`) | `GAME_OVER` → `CLEANUP` |
+| Both players gone and no rejoin in time | any game state | No one to notify | `CLEANUP` |
+| any disconnect | `GAME_OVER` / `CLEANUP` | Ignore (already ending) | unchanged |
 
 ### 3.2 Post-game reset
 
