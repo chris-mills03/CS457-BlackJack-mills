@@ -181,7 +181,8 @@ user. On GAME_OVER print the results and exit. On "quit" send DISCONNECT, then c
 
 ## 5. Sprint 2 Design Assistance Prompts
 
-For Sprint 2 (concurrency design), I used an AI assistant (Claude) for design help rather than code generation. I chose the concurrency model (`selectors`), gave it my Sprint 1 specs and the Sprint 2 assignment and rubric as context, and reviewed every suggestion against them. These are the kinds of prompts I used.
+For Sprint 2, I used AI for assistance with design help rather than code generation. I chose the concurrency model (`selectors`), gave it my Sprint 1 
+specs and the Sprint 2 assignment and rubric as context, and reviewed every suggestion against them. These are the kinds of prompts I used.
 
 ### 5.1 Markdown formatting
 
@@ -215,7 +216,7 @@ protocol (CONNECT, LOBBY_WAIT, GAME_START, BET, MOVE, STATE_UPDATE, ERROR, DISCO
 GAME_OVER). For each step, say which FSM state the server is in, what it validates,
 what state changes, and which clients receive which message. Include the error cases:
 out-of-turn MOVE, invalid action, invalid bet. Point out anything in my
-fsm_specification.md that would need to change (for example, rejoining after a drop).
+fsm_specification.md that would need to change. for example, rejoining after a drop.
 ```
 
 ### 5.4 Using Mermaid
@@ -226,8 +227,7 @@ the style of my instructor's example: autonumber, actor / participant / actor, a
 "Server validates" note, and an alt/else block for valid vs invalid or out-of-turn
 moves. Show STATE_UPDATE going to both clients after each change, the turn switch,
 the end-of-round score broadcast, and GAME_OVER. Make sure every message type in my
-protocol appears. Avoid characters that break Mermaid parsing (such as ; and #) and
-check that the diagram renders without syntax errors.
+protocol appears.
 ```
 
 ### 5.5 How I reviewed the output
@@ -235,4 +235,4 @@ check that the diagram renders without syntax errors.
 - Checked every message name, field, error code and FSM state against `protocol_blueprint.md` and `fsm_specification.md`.
 - Cut suggestions that went beyond what Sprint 2 asks for, to keep the design at the right level for this stage.
 - Confirmed the Mermaid diagrams render on GitHub.
-- Updated the Sprint 1 specs only where my design changed (rejoin after an unexpected disconnect) and marked those changes as Sprint 2 updates.
+- Updated the Sprint 1 specs only where my design changed and marked those changes as Sprint 2 updates.
