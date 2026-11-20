@@ -21,6 +21,7 @@ Author: Christopher Aidan Mills -- CS 457 Computer Networks
 
 import argparse
 import json
+import os
 import re
 import socket
 import sys
@@ -83,8 +84,73 @@ def extract_frames(buffer):
 # --------------------------------------------------------------------------- #
 # Rendering helpers
 # --------------------------------------------------------------------------- #
-def fmt_cards(cards):
-    return " ".join(cards) if cards else "--"
+# --------------------------------------------------------------------------- #
+# ASCII card art
+# --------------------------------------------------------------------------- #
+def _supports(text):
+    """True if stdout can print ``text`` (e.g. Unicode suits and borders)."""
+    try:
+        text.encode(sys.stdout.encoding or "ascii")
+        return True
+    except (UnicodeEncodeError, LookupError):
+        return False
+
+
+UNICODE_CARDS = _supports(
+    "\u250c\u2500\u2510\u2502\u2514\u2518\u2591" "\u2660\u2665\u2666\u2663"
+)
+if UNICODE_CARDS:
+    SUITS = {"S": "\u2660", "H": "\u2665", "D": "\u2666", "C": "\u2663"}
+    TL, TR, BL, BR, HZ, VT, BACK = (
+        "\u250c",
+        "\u2510",
+        "\u2514",
+        "\u2518",
+        "\u2500",
+        "\u2502",
+        "\u2591",
+    )
+else:  # plain-ASCII fallback
+    SUITS = {"S": "S", "H": "H", "D": "D", "C": "C"}
+    TL, TR, BL, BR, HZ, VT, BACK = "+", "+", "+", "+", "-", "|", "#"
+
+# Red hearts/diamonds on real terminals; NO_COLOR (no-color.org) disables.
+USE_COLOR = (
+    sys.stdout.isatty()
+    and "NO_COLOR" not in os.environ
+    and (os.name != "nt" or "WT_SESSION" in os.environ)
+)
+RED, RESET = ("\033[31m", "\033[0m") if USE_COLOR else ("", "")
+CARD_ROWS = 5
+
+
+def card_art(card):
+    """Return the 5 text rows of one 7-column card, e.g. "10H" or "??"."""
+    top = TL + HZ * 5 + TR
+    bottom = BL + HZ * 5 + BR
+    if card == "??":  # dealer's face-down hole card
+        return [top] + [VT + BACK * 5 + VT] * 3 + [bottom]
+    rank, suit = card[:-1], card[-1]
+    paint = RED if suit in "HD" else ""
+    end = RESET if paint else ""
+    pip = SUITS.get(suit, suit)
+    return [
+        top,
+        f"{VT}{paint}{rank:<2}{end}   {VT}",
+        f"{VT}  {paint}{pip}{end}  {VT}",
+        f"{VT}   {paint}{rank:>2}{end}{VT}",
+        bottom,
+    ]
+
+
+def hand_art(cards, indent="   "):
+    """Lay a hand's cards side by side; returns a list of text rows."""
+    if not cards:
+        return [f"{indent}(no cards yet)"]
+    arts = [card_art(c) for c in cards]
+    return [
+        indent + " ".join(a[row] for a in arts) for row in range(CARD_ROWS)
+    ]
 
 
 class Display:
@@ -305,9 +371,10 @@ class BlackjackClient:
         ]
         dval = dealer.get("value")
         lines.append(
-            f"  {'DEALER':<22} {fmt_cards(dealer.get('cards')):<20}"
+            f"  {'DEALER':<22} {'':<20}"
             f" value {'-' if not dealer.get('cards') else dval or '?'}"
         )
+        lines.extend(hand_art(dealer.get("cards")))
         lines.append("-" * WIDTH)
         for seat in ("PLAYER_1", "PLAYER_2"):
             p = players.get(seat)
@@ -317,13 +384,14 @@ class BlackjackClient:
             you = " (you)" if seat == self.seat else ""
             name = f"{p.get('alias')}{you}"
             lines.append(
-                f"{marker} {name:<22} {fmt_cards(p.get('cards')):<20}"
+                f"{marker} {name:<22} {seat:<20}"
                 f" value {p.get('value') if p.get('cards') else '-'}"
             )
+            lines.extend(hand_art(p.get("cards")))
             extra = "" if p.get("connected", True) else "  ** DISCONNECTED **"
             result = f"  => {p['result']}" if p.get("result") else ""
             lines.append(
-                f"    {seat}  bet {p.get('bet'):<4} balance "
+                f"   bet {p.get('bet'):<4} balance "
                 f"{p.get('balance'):<5} {p.get('status')}"
                 f"{result}{extra}"
             )

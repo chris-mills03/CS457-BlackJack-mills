@@ -414,6 +414,25 @@ class SocketTests(unittest.TestCase):
         a.close()
 
 
+class CardArtTests(unittest.TestCase):
+    def test_card_shape_and_rank(self):
+        art = client.card_art("10H")
+        self.assertEqual(len(art), client.CARD_ROWS)
+        self.assertIn("10", art[1])
+        self.assertIn("10", art[3])
+        art = client.card_art("QS")
+        self.assertTrue(all(len(row) == 7 for row in art))
+
+    def test_hidden_card_has_no_rank(self):
+        self.assertNotIn("?", "".join(client.card_art("??")))
+
+    def test_hand_side_by_side(self):
+        rows = client.hand_art(["AS", "KD", "??"], indent="")
+        self.assertEqual(len(rows), client.CARD_ROWS)
+        self.assertEqual(len(rows[0]), 3 * 7 + 2)
+        self.assertIn("no cards", client.hand_art([])[0])
+
+
 class ClientCliTests(unittest.TestCase):
     def test_dns_failure_exits_1(self):
         with self.assertRaises(SystemExit) as ctx:
