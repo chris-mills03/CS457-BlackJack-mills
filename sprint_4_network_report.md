@@ -187,6 +187,10 @@ IP address          Client-ID/              Lease expiration        Type
 192.168.11.2        0152.5400.dcfe.95       Nov 21 2026 07:50 PM    Automatic
 ```
 
+![show ip dhcp binding on cm-R1](screenshots/r1_show_ip_dhcp_binding.png)
+
+---
+
 ## 4. Endpoint verification
 
 ### 4.1 Game server: `ip addr show eth0` and `ip route`
@@ -353,25 +357,27 @@ python3 client.py -i server.mills.edu -p 5457 -n Alice    # Bob on Client 2
 ![Blackjack game running in CML: cm-Server log, cm-Client1 (Alice) and cm-Client2 (Bob)](screenshots/cml_blackjack_gameplay.png)
 
 *Left: `cm-Server` (192.168.20.100). Middle: `cm-Client1` (Alice). Right:
-`cm-Client2` (Bob). The game is at the start of round 3 of 5.*
+`cm-Client2` (Bob). Round 1 has just ended, and round 2 of 5 is in betting.
+The clients draw each hand as ASCII-art cards, with hearts and diamonds in
+red.*
 
 What the screenshot shows:
 
-- **Both clients reach the server across subnets.** The server log receives
-  messages from `Alice@192.168.10.2` (Subnet A) and `Bob@192.168.11.2`
-  (Subnet B). Each client used DNS to resolve `server.mills.edu` to
-  192.168.20.100, and R1 routed the TCP connection from the client's subnet
-  to Subnet C.
-- **The Sprint 1 FSM runs over the network.** The log shows the full cycle
-  for round 2:
-  `BETTING -> DEALING -> PLAYER_TURN -> EVALUATE_MOVE -> DEALER_TURN -> ROUND_END -> BETTING`.
-  Both players hit to exactly 21 and auto-stood, which follows the FSM
-  spec's turn rule.
+- **Both clients reach the server across subnets.** The server log accepts
+  `CONNECT` from `192.168.10.2` (Subnet A), seats Alice as `PLAYER_1`, then
+  accepts `192.168.11.2` (Subnet B) and seats Bob as `PLAYER_2`. Each client
+  used DNS to resolve `server.mills.edu` to 192.168.20.100, and R1 routed the
+  TCP connection from the client's subnet to Subnet C.
+- **The Sprint 1 FSM runs over the network.** In one game the log shows
+  `WAITING_FOR_PLAYERS -> GAME_START -> BETTING -> DEALING -> PLAYER_TURN`,
+  then `PLAYER_TURN -> EVALUATE_MOVE -> PLAYER_TURN` for each hit, then
+  `DEALER_TURN -> ROUND_END -> BETTING` for round 2. Alice hits three times
+  and busts at 22 (8, 4, 2, A, 7). The turn passes to Bob, who stands
+  on 16. The dealer draws to 17, and both players lose round 1.
 - **Both players see the same state.** Each client draws the same table from
-  the same `STATE_UPDATE`. After round 2, both show "Alice WIN, Bob WIN" and
-  the scoreboard Alice 800 | Bob 500. In round 3, Bob's bet of 50 appears on
-  both screens, and each client prompts the right player ("YOUR TURN" for
-  Alice, "Waiting for Alice to bet..." for Bob).
+  the same `STATE_UPDATE`: identical hands, `BUST => LOSS` / `STAND => LOSS`
+  results, and the scoreboard Alice 480 | Bob 450. Each client's bet prompt
+  is capped at its own balance: 10–480 for Alice, 10–450 for Bob.
 
 ---
 
